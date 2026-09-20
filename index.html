@@ -11,27 +11,28 @@
   body {
     font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
     color:var(--text); min-height:100vh;
-    background:linear-gradient(135deg,#050818,#1b0f3a,#08284d,#0b3b3a,#2a0f4a,#050818);
+    background:linear-gradient(135deg,#000,#1c1c1c,#0a0a0a,#333,#111,#000);
     background-size:400% 400%; animation:sky 30s ease infinite;
   }
   @keyframes sky { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
   #stars { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
   nav {
     position:fixed; top:0; left:0; right:0; z-index:10; display:flex; justify-content:center; gap:32px;
-    padding:14px 10px; background:rgba(5,8,24,.55); backdrop-filter:blur(6px);
+    padding:14px 10px; background:rgba(0,0,0,.6); backdrop-filter:blur(6px);
   }
   nav a { color:#fff; text-decoration:none; font-weight:700; letter-spacing:2px; }
   nav a:hover { color:var(--blue); }
   section { position:relative; z-index:1; padding:100px 6vw 60px; }
   #home { min-height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
-  #home h1 { font-size:clamp(48px,10vw,120px); font-weight:900; color:#fff; text-shadow:0 0 24px rgba(143,211,255,.6); }
+  #home h1 { font-size:clamp(48px,10vw,120px); font-weight:900; color:#fff; text-shadow:0 0 24px rgba(255,255,255,.35); }
   #home p { margin-top:18px; font-size:clamp(20px,3.5vw,36px); font-weight:700; color:#fff; }
-  #video { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:32px; }
-  #video h2 { font-size:clamp(28px,4vw,44px); font-weight:900; }
-  .video-box { flex:1 1 480px; max-width:820px; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+  #video { display:flex; flex-direction:column; align-items:center; }
+  .video-wrap { width:100%; max-width:820px; }
+  #video h2 { font-size:clamp(24px,3.5vw,36px); font-weight:900; text-align:left; margin-bottom:12px; }
+  .video-box { width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
   .video-box video, .video-box iframe { width:100%; height:100%; border:0; display:block; }
   #board { max-width:820px; margin:0 auto; }
-  fieldset { border:2px solid var(--blue); border-radius:0; padding:20px; background:rgba(5,8,24,.35); }
+  fieldset { border:2px solid var(--blue); border-radius:0; padding:20px; background:rgba(0,0,0,.4); }
   legend { color:var(--blue); font-weight:900; font-size:20px; padding:0 10px; margin-left:6px; }
   input, textarea {
     width:100%; padding:10px; margin-bottom:10px; background:rgba(255,255,255,.08);
@@ -65,6 +66,7 @@
 
 <!-- ② 影片 -->
 <section id="video">
+  <div class="video-wrap">
   <h2>教學影片</h2>
   <div class="video-box">
     <!-- 方式 A：放在自己網站裡的影片檔（把影片放進 videos 資料夾，命名 tutorial.mp4）-->
@@ -76,6 +78,7 @@
     <!-- 方式 B：YouTube 嵌入（留在網站內播放、不會跳轉）。要用的話，刪掉上面 <video>，改用下面這行，並換掉 VIDEO_ID：
     <iframe src="https://www.youtube.com/embed/VIDEO_ID" allowfullscreen></iframe>
     -->
+  </div>
   </div>
 </section>
 
@@ -91,12 +94,8 @@
   </fieldset>
 </section>
 
-<footer>
-  <span id="adminState"><a id="adminLink">管理員登入</a></span>
-</footer>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /* ===== 動態星空 ===== */
@@ -131,62 +130,41 @@ const firebaseConfig = {
 
 const $ = id => document.getElementById(id);
 const notice = t => $('notice').textContent = t || '';
-let db, auth, isAdmin = false;
+let db;
 
 if (firebaseConfig.apiKey === "YOUR_API_KEY") {
   notice('留言功能尚未設定：請依說明填入 Firebase 設定。');
   $('send').disabled = true;
 } else {
   firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore(); auth = firebase.auth();
+  db = firebase.firestore();
   db.collection('messages').orderBy('createdAt', 'desc').limit(200)
     .onSnapshot(render, e => notice('讀取留言失敗：' + e.message));
-  auth.onAuthStateChanged(u => {
-    isAdmin = !!u;
-    $('adminState').innerHTML = u ? '管理員模式 · <a id="adminLink">登出</a>' : '<a id="adminLink">管理員登入</a>';
-    $('adminLink').onclick = adminClick;
-    if (lastSnap) render(lastSnap);
-  });
 }
 
-let lastSnap = null;
 function render(snap) {
-  lastSnap = snap;
   const list = $('list'); list.innerHTML = '';
   snap.forEach(doc => {
     const d = doc.data(), div = document.createElement('div'); div.className = 'msg';
     const meta = document.createElement('div'); meta.className = 'meta';
-    const t = d.createdAt ? d.createdAt.toDate().toLocaleString('zh-TW') : '剛剛';
-    meta.textContent = d.name + '　' + t;
-    if (isAdmin) {
-      const b = document.createElement('button'); b.className = 'del'; b.textContent = '刪除';
-      b.onclick = () => confirm('確定刪除這則留言？') && db.collection('messages').doc(doc.id).delete().catch(e => notice('刪除失敗：' + e.message));
-      meta.prepend(b);
-    }
+    meta.textContent = d.name + '　' + (d.createdAt ? d.createdAt.toDate().toLocaleString('zh-TW') : '剛剛');
     const body = document.createElement('div'); body.className = 'body'; body.textContent = d.text;
     div.append(meta, body); list.append(div);
   });
 }
 
+let last = 0;
 $('send').onclick = async () => {
   const name = $('name').value.trim() || '匿名', text = $('text').value.trim();
   if (!text) return notice('請先輸入留言內容。');
+  if (Date.now() - last < 10000) return notice('請稍等幾秒再留言。');
   $('send').disabled = true;
   try {
     await db.collection('messages').add({ name, text, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    $('text').value = ''; notice('');
+    $('text').value = ''; notice(''); last = Date.now();
   } catch (e) { notice('送出失敗：' + e.message); }
   $('send').disabled = false;
 };
-
-function adminClick() {
-  if (!auth) return alert('請先完成 Firebase 設定。');
-  if (isAdmin) return auth.signOut();
-  const email = prompt('管理員 Email'); if (!email) return;
-  const pw = prompt('密碼'); if (!pw) return;
-  auth.signInWithEmailAndPassword(email, pw).catch(e => alert('登入失敗：' + e.message));
-}
-$('adminLink').onclick = adminClick;
 </script>
 </body>
 </html>
